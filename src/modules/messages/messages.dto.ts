@@ -18,3 +18,10 @@ export class CreateMessageRequestDto {
   requires_response?: boolean;
 }
 
+export class CreateMessageVersionRequestDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(20000)
+  body!: string;
+}
+

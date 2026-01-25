@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Post, Req, UseGuards } from "@nestjs/common";
 
 import { JwtAuthGuard, type RequestWithPrincipal } from "../../shared/auth/auth.guard";
-import { CreateMessageRequestDto } from "./messages.dto";
+import { CreateMessageRequestDto, CreateMessageVersionRequestDto } from "./messages.dto";
 import { MessagesService } from "./messages.service";
 
 @Controller("messages")
@@ -64,6 +64,44 @@ export class MessagesController {
               created_at: v.createdAt.toISOString()
             }
           : null
+      }))
+    };
+  }
+
+  @Post(":messageId/versions")
+  async createVersion(
+    @Req() req: RequestWithPrincipal,
+    @Param("messageId") messageId: string,
+    @Body() body: CreateMessageVersionRequestDto
+  ) {
+    const p = req.principal!;
+    const v = await this.messages.createVersion({
+      orgId: p.org_id,
+      messageId,
+      body: body.body,
+      editorUserId: p.user_id,
+      editorMembershipId: p.membership_id
+    });
+    return {
+      version: {
+        id: v.id,
+        message_id: v.messageId,
+        body: v.body,
+        created_at: v.createdAt.toISOString()
+      }
+    };
+  }
+
+  @Get(":messageId/versions")
+  async listVersions(@Req() req: RequestWithPrincipal, @Param("messageId") messageId: string) {
+    const p = req.principal!;
+    const versions = await this.messages.listVersions({ orgId: p.org_id, messageId });
+    return {
+      versions: versions.map((v) => ({
+        id: v.id,
+        message_id: v.messageId,
+        body: v.body,
+        created_at: v.createdAt.toISOString()
       }))
     };
   }
