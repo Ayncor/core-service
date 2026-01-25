@@ -7,6 +7,10 @@ build/
 .nestjs/
 *.tsbuildinfo
 
+## Caches
+.cache/
+.eslintcache
+
 ## Logs
 logs/
 *.log
@@ -23,9 +27,15 @@ coverage/
 .env.*
 !.env.example
 
+## Generated code
+src/generated/prisma/
+
 ## Runtime data
 tmp/
 temp/
+*.pid
+*.seed
+*.pid.lock
 
 ## IDE / OS
 .vscode/
