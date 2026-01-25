@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client"
+  // Prisma ORM v7 requires explicit output (no longer generated into node_modules).
+  // This path is relative to this schema file (`prisma/schema.prisma`).
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ChannelVisibility {
+  ORG
+  PRIVATE
+}
+
+enum ThreadState {
+  OPEN
+  BLOCKED
+  DECIDED
+  ARCHIVED
+}
+
+enum Urgency {
+  NORMAL
+  URGENT
+}
+
+model Channel {
+  id         String            @id @default(uuid()) @db.Uuid
+  orgId      String            @db.Uuid
+  name       String
+  slug       String
+  visibility ChannelVisibility @default(ORG)
+
+  createdByUserId String? @db.Uuid
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  archivedAt      DateTime?
+
+  threads Thread[]
+
+  @@unique([orgId, slug])
+  @@index([orgId, createdAt])
+}
+
+model Thread {
+  id        String      @id @default(uuid()) @db.Uuid
+  orgId     String      @db.Uuid
+  channelId String      @db.Uuid
+  state     ThreadState @default(OPEN)
+
+  title   String
+  purpose String?
+
+  createdByUserId       String?  @db.Uuid
+  createdByMembershipId String?  @db.Uuid
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  archivedAt            DateTime?
+
+  channel  Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@index([orgId, createdAt])
+  @@index([channelId, createdAt])
+}
+
+model Message {
+  id       String  @id @default(uuid()) @db.Uuid
+  orgId    String  @db.Uuid
+  threadId String  @db.Uuid
+
+  authorUserId       String? @db.Uuid
+  authorMembershipId String? @db.Uuid
+
+  urgency          Urgency @default(NORMAL)
+  requiresResponse Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  deletedAt DateTime?
+
+  thread   Thread           @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  versions MessageVersion[]
+  reactions Reaction[]
+
+  @@index([orgId, createdAt])
+  @@index([threadId, createdAt])
+}
+
+model MessageVersion {
+  id        String   @id @default(uuid()) @db.Uuid
+  orgId     String   @db.Uuid
+  messageId String   @db.Uuid
+  body      String
+  createdAt DateTime @default(now())
+
+  editorUserId String? @db.Uuid
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId, createdAt])
+}
+
+model Reaction {
+  id        String   @id @default(uuid()) @db.Uuid
+  orgId     String   @db.Uuid
+  messageId String   @db.Uuid
+  emoji     String
+
+  actorUserId       String? @db.Uuid
+  actorMembershipId String? @db.Uuid
+
+  createdAt DateTime @default(now())
+  removedAt DateTime?
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId, createdAt])
+  @@index([orgId, createdAt])
+}
+
