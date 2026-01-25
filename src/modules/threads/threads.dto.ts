@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsUUID, MaxLength, MinLength } from "class-validator";
+import { IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from "class-validator";
 
 export class CreateThreadRequestDto {
   @IsUUID()
@@ -13,5 +13,10 @@ export class CreateThreadRequestDto {
   @IsString()
   @MaxLength(2000)
   purpose?: string;
+}
+
+export class UpdateThreadStateRequestDto {
+  @IsIn(["OPEN", "BLOCKED", "DECIDED", "ARCHIVED"])
+  state!: "OPEN" | "BLOCKED" | "DECIDED" | "ARCHIVED";
 }
 
