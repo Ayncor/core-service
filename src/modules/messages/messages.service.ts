@@ -70,5 +70,37 @@ export class MessagesService {
       latest: latestByMessageId.get(m.id) ?? null
     }));
   }
+
+  async createVersion(input: { orgId: string; messageId: string; body: string; editorUserId: string; editorMembershipId: string }) {
+    const msg = await this.prisma.message.findUnique({ where: { id: input.messageId } });
+    if (!msg) throw new NotFoundException("Message not found");
+    if (msg.orgId !== input.orgId) throw new ForbiddenException("Forbidden");
+    if (msg.deletedAt) throw new ForbiddenException("Message deleted");
+
+    const thread = await this.prisma.thread.findUnique({ where: { id: msg.threadId } });
+    if (!thread) throw new NotFoundException("Thread not found");
+    if (thread.orgId !== input.orgId) throw new ForbiddenException("Forbidden");
+    if (thread.archivedAt || thread.state === "ARCHIVED") throw new ForbiddenException("Thread is archived");
+
+    return await this.prisma.messageVersion.create({
+      data: {
+        orgId: input.orgId,
+        messageId: input.messageId,
+        body: input.body,
+        editorUserId: input.editorUserId
+      }
+    });
+  }
+
+  async listVersions(input: { orgId: string; messageId: string }) {
+    const msg = await this.prisma.message.findUnique({ where: { id: input.messageId } });
+    if (!msg) throw new NotFoundException("Message not found");
+    if (msg.orgId !== input.orgId) throw new ForbiddenException("Forbidden");
+
+    return await this.prisma.messageVersion.findMany({
+      where: { orgId: input.orgId, messageId: input.messageId },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }]
+    });
+  }
 }
 

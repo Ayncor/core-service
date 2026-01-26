@@ -7,6 +7,7 @@ import { StorageModule } from "./shared/storage/storage.module";
 import { ChannelsModule } from "./modules/channels/channels.module";
 import { ThreadsModule } from "./modules/threads/threads.module";
 import { MessagesModule } from "./modules/messages/messages.module";
+import { ReactionsModule } from "./modules/reactions/reactions.module";
 
 @Module({
   imports: [
@@ -16,7 +17,8 @@ import { MessagesModule } from "./modules/messages/messages.module";
     HealthModule,
     ChannelsModule,
     ThreadsModule,
-    MessagesModule
+    MessagesModule,
+    ReactionsModule
   ]
 })
 export class AppModule {}

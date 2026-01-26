@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Post, Req, UseGuards } from "@nestjs/common";
 
 import { JwtAuthGuard, type RequestWithPrincipal } from "../../shared/auth/auth.guard";
-import { CreateThreadRequestDto } from "./threads.dto";
+import { CreateThreadRequestDto, UpdateThreadStateRequestDto } from "./threads.dto";
 import { ThreadsService } from "./threads.service";
 
 @Controller("threads")
@@ -47,6 +47,28 @@ export class ThreadsController {
         purpose: t.purpose,
         created_at: t.createdAt.toISOString()
       }))
+    };
+  }
+
+  @Post(":threadId/state")
+  async setState(@Req() req: RequestWithPrincipal, @Param("threadId") threadId: string, @Body() body: UpdateThreadStateRequestDto) {
+    const p = req.principal!;
+    const t = await this.threads.setThreadState({
+      orgId: p.org_id,
+      threadId,
+      nextState: body.state
+    });
+    return {
+      thread: {
+        id: t.id,
+        org_id: t.orgId,
+        channel_id: t.channelId,
+        state: t.state,
+        title: t.title,
+        purpose: t.purpose,
+        created_at: t.createdAt.toISOString(),
+        archived_at: t.archivedAt ? t.archivedAt.toISOString() : null
+      }
     };
   }
 }

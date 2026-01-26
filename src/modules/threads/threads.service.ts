@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 
 import { PrismaService } from "../../shared/storage/prisma.service";
 
@@ -39,6 +39,29 @@ export class ThreadsService {
     return await this.prisma.thread.findMany({
       where: { orgId, channelId, archivedAt: null },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }]
+    });
+  }
+
+  async setThreadState(input: { orgId: string; threadId: string; nextState: "OPEN" | "BLOCKED" | "DECIDED" | "ARCHIVED" }) {
+    const thread = await this.prisma.thread.findUnique({ where: { id: input.threadId } });
+    if (!thread) throw new NotFoundException("Thread not found");
+    if (thread.orgId !== input.orgId) throw new ForbiddenException("Forbidden");
+
+    if (thread.state === "ARCHIVED" || thread.archivedAt) {
+      throw new ConflictException("Thread is archived");
+    }
+
+    const next = input.nextState;
+    if (!["OPEN", "BLOCKED", "DECIDED", "ARCHIVED"].includes(next)) {
+      throw new ConflictException("Invalid thread state");
+    }
+
+    return await this.prisma.thread.update({
+      where: { id: input.threadId },
+      data: {
+        state: next as any,
+        archivedAt: next === "ARCHIVED" ? new Date() : null
+      }
     });
   }
 }
