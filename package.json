@@ -1,7 +1,7 @@
 {
   "name": "core-service",
   "version": "0.1.0",
-  "description": "Repo placeholder for the core-service implementation (channels, threads, messages, reactions, async inbox workflow).",
+  "description": "Core domain service: channels, threads, messages, reactions, participants, user-state, inbox (async-first workflow).",
   "private": true,
   "scripts": {
     "build": "nest build",
