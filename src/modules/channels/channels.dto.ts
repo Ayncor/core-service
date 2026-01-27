@@ -15,5 +15,10 @@ export class CreateChannelRequestDto {
   @IsOptional()
   @IsIn(["ORG", "PRIVATE"])
   visibility?: "ORG" | "PRIVATE";
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  description?: string;
 }
 
