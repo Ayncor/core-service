@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 
 import { PrismaService } from "../../shared/storage/prisma.service";
 
@@ -49,9 +49,9 @@ export class UserStateService {
     if (!thread) throw new NotFoundException("Thread not found");
     if (thread.orgId !== input.orgId) throw new ForbiddenException("Forbidden");
 
-    // Validate: if status is SNOOZED, snoozedUntil must be set
+    // Validate: if status is SNOOZED, snoozedUntil must be set (return 400 per contract)
     if (input.status === "SNOOZED" && !input.snoozedUntil) {
-      throw new Error("snoozed_until is required when status is SNOOZED");
+      throw new BadRequestException("snoozed_until is required when status is SNOOZED");
     }
 
     const existing = await this.prisma.threadUserState.findUnique({
