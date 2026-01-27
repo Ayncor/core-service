@@ -10,8 +10,12 @@ export class MessagesService {
     orgId: string;
     threadId: string;
     body: string;
+    kind?: "TEXT" | "SYSTEM";
     urgency?: "NORMAL" | "URGENT";
     requiresResponse?: boolean;
+    replyToMessageId?: string | null;
+    metadataJson?: Record<string, any> | null;
+    format?: "PLAIN" | "MARKDOWN";
     authorUserId?: string | null;
     authorMembershipId?: string | null;
   }) {
@@ -27,18 +31,37 @@ export class MessagesService {
           threadId: input.threadId,
           authorUserId: input.authorUserId ?? null,
           authorMembershipId: input.authorMembershipId ?? null,
+          kind: (input.kind ?? "TEXT") as any,
           urgency: (input.urgency ?? "NORMAL") as any,
-          requiresResponse: input.requiresResponse ?? false
+          requiresResponse: input.requiresResponse ?? false,
+          replyToMessageId: input.replyToMessageId ?? null,
+          metadataJson: input.metadataJson ?? {}
         }
       });
+
+      // Get the next version number
+      const existingVersions = await tx.messageVersion.findMany({
+        where: { orgId: input.orgId, messageId: msg.id },
+        orderBy: { version: "desc" },
+        take: 1
+      });
+      const nextVersion = existingVersions.length > 0 ? existingVersions[0].version + 1 : 1;
 
       const v = await tx.messageVersion.create({
         data: {
           orgId: input.orgId,
           messageId: msg.id,
+          version: nextVersion,
           body: input.body,
+          format: (input.format ?? "MARKDOWN") as any,
           editorUserId: input.authorUserId ?? null
         }
+      });
+
+      // Update thread lastActivityAt
+      await tx.thread.update({
+        where: { id: input.threadId },
+        data: { lastActivityAt: new Date() }
       });
 
       return { msg, v };
@@ -71,7 +94,14 @@ export class MessagesService {
     }));
   }
 
-  async createVersion(input: { orgId: string; messageId: string; body: string; editorUserId: string; editorMembershipId: string }) {
+  async createVersion(input: {
+    orgId: string;
+    messageId: string;
+    body: string;
+    format?: "PLAIN" | "MARKDOWN";
+    editorUserId: string;
+    editorMembershipId: string;
+  }) {
     const msg = await this.prisma.message.findUnique({ where: { id: input.messageId } });
     if (!msg) throw new NotFoundException("Message not found");
     if (msg.orgId !== input.orgId) throw new ForbiddenException("Forbidden");
@@ -82,13 +112,33 @@ export class MessagesService {
     if (thread.orgId !== input.orgId) throw new ForbiddenException("Forbidden");
     if (thread.archivedAt || thread.state === "ARCHIVED") throw new ForbiddenException("Thread is archived");
 
-    return await this.prisma.messageVersion.create({
-      data: {
-        orgId: input.orgId,
-        messageId: input.messageId,
-        body: input.body,
-        editorUserId: input.editorUserId
-      }
+    return await this.prisma.$transaction(async (tx) => {
+      // Get the next version number
+      const existingVersions = await tx.messageVersion.findMany({
+        where: { orgId: input.orgId, messageId: input.messageId },
+        orderBy: { version: "desc" },
+        take: 1
+      });
+      const nextVersion = existingVersions.length > 0 ? existingVersions[0].version + 1 : 1;
+
+      const version = await tx.messageVersion.create({
+        data: {
+          orgId: input.orgId,
+          messageId: input.messageId,
+          version: nextVersion,
+          body: input.body,
+          format: (input.format ?? "MARKDOWN") as any,
+          editorUserId: input.editorUserId
+        }
+      });
+
+      // Update thread lastActivityAt
+      await tx.thread.update({
+        where: { id: msg.threadId },
+        data: { lastActivityAt: new Date() }
+      });
+
+      return version;
     });
   }
 

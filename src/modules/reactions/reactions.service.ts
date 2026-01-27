@@ -34,6 +34,8 @@ export class ReactionsService {
       orderBy: [{ createdAt: "desc" }, { id: "desc" }]
     });
 
+    const msg = await this.getMessageOrThrow(input.orgId, input.messageId);
+
     if (existingActive) {
       const updated = await this.prisma.reaction.update({
         where: { id: existingActive.id },
@@ -42,17 +44,25 @@ export class ReactionsService {
       return { action: "removed" as const, reaction: updated };
     }
 
-    const created = await this.prisma.reaction.create({
-      data: {
-        orgId: input.orgId,
-        messageId: input.messageId,
-        emoji: input.emoji,
-        actorUserId: input.actorUserId,
-        actorMembershipId: input.actorMembershipId
-      }
-    });
+    return await this.prisma.$transaction(async (tx) => {
+      const created = await tx.reaction.create({
+        data: {
+          orgId: input.orgId,
+          messageId: input.messageId,
+          emoji: input.emoji,
+          actorUserId: input.actorUserId,
+          actorMembershipId: input.actorMembershipId
+        }
+      });
 
-    return { action: "added" as const, reaction: created };
+      // Update thread lastActivityAt
+      await tx.thread.update({
+        where: { id: msg.threadId },
+        data: { lastActivityAt: new Date() }
+      });
+
+      return { action: "added" as const, reaction: created };
+    });
   }
 
   async listForMessage(input: { orgId: string; messageId: string; actorUserId: string }) {

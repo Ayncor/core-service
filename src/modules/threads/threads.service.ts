@@ -19,15 +19,40 @@ export class ThreadsService {
     if (channel.orgId !== input.orgId) throw new ForbiddenException("Forbidden");
     if (channel.archivedAt) throw new ForbiddenException("Channel is archived");
 
-    return await this.prisma.thread.create({
-      data: {
-        orgId: input.orgId,
-        channelId: input.channelId,
-        title: input.title,
-        purpose: input.purpose ?? null,
-        createdByUserId: input.createdByUserId ?? null,
-        createdByMembershipId: input.createdByMembershipId ?? null
+    return await this.prisma.$transaction(async (tx) => {
+      const thread = await tx.thread.create({
+        data: {
+          orgId: input.orgId,
+          channelId: input.channelId,
+          title: input.title,
+          purpose: input.purpose ?? null,
+          createdByUserId: input.createdByUserId ?? null,
+          createdByMembershipId: input.createdByMembershipId ?? null
+        }
+      });
+
+      // Auto-create participant (creator is OWNER)
+      if (input.createdByUserId) {
+        await tx.threadParticipant.create({
+          data: {
+            orgId: input.orgId,
+            threadId: thread.id,
+            userId: input.createdByUserId,
+            role: "OWNER"
+          }
+        });
+
+        // Auto-create user state (IN_INBOX)
+        await tx.threadUserState.create({
+          data: {
+            orgId: input.orgId,
+            threadId: thread.id,
+            userId: input.createdByUserId
+          }
+        });
       }
+
+      return thread;
     });
   }
 

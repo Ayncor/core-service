@@ -8,6 +8,9 @@ import { ChannelsModule } from "./modules/channels/channels.module";
 import { ThreadsModule } from "./modules/threads/threads.module";
 import { MessagesModule } from "./modules/messages/messages.module";
 import { ReactionsModule } from "./modules/reactions/reactions.module";
+import { ParticipantsModule } from "./modules/participants/participants.module";
+import { UserStateModule } from "./modules/user-state/user-state.module";
+import { InboxModule } from "./modules/inbox/inbox.module";
 
 @Module({
   imports: [
@@ -18,7 +21,10 @@ import { ReactionsModule } from "./modules/reactions/reactions.module";
     ChannelsModule,
     ThreadsModule,
     MessagesModule,
-    ReactionsModule
+    ReactionsModule,
+    ParticipantsModule,
+    UserStateModule,
+    InboxModule
   ]
 })
 export class AppModule {}

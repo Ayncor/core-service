@@ -26,6 +26,34 @@ enum Urgency {
   URGENT
 }
 
+enum ThreadParticipantRole {
+  OWNER
+  PARTICIPANT
+  OBSERVER
+}
+
+enum ThreadUserStatus {
+  IN_INBOX
+  ARCHIVED
+  SNOOZED
+}
+
+enum PriorityOverride {
+  NONE
+  LOW
+  HIGH
+}
+
+enum MessageKind {
+  TEXT
+  SYSTEM
+}
+
+enum MessageFormat {
+  PLAIN
+  MARKDOWN
+}
+
 model Channel {
   id         String            @id @default(uuid()) @db.Uuid
   orgId      String            @db.Uuid
@@ -53,17 +81,21 @@ model Thread {
   title   String
   purpose String?
 
-  createdByUserId       String?  @db.Uuid
-  createdByMembershipId String?  @db.Uuid
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdByUserId       String?   @db.Uuid
+  createdByMembershipId String?   @db.Uuid
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  lastActivityAt        DateTime  @default(now())
   archivedAt            DateTime?
 
-  channel  Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  messages Message[]
+  channel          Channel            @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  messages         Message[]
+  participants     ThreadParticipant[]
+  userStates       ThreadUserState[]
 
   @@index([orgId, createdAt])
   @@index([channelId, createdAt])
+  @@index([orgId, lastActivityAt])
 }
 
 model Message {
@@ -71,14 +103,18 @@ model Message {
   orgId    String  @db.Uuid
   threadId String  @db.Uuid
 
-  authorUserId       String? @db.Uuid
-  authorMembershipId String? @db.Uuid
+  authorUserId       String?      @db.Uuid
+  authorMembershipId String?      @db.Uuid
 
-  urgency          Urgency @default(NORMAL)
-  requiresResponse Boolean @default(false)
+  kind            MessageKind @default(TEXT)
+  urgency         Urgency     @default(NORMAL)
+  requiresResponse Boolean     @default(false)
+  replyToMessageId String?    @db.Uuid
+  metadataJson     Json        @default("{}")
 
   createdAt DateTime @default(now())
   deletedAt DateTime?
+  deletedBy String?  @db.Uuid
 
   thread   Thread           @relation(fields: [threadId], references: [id], onDelete: Cascade)
   versions MessageVersion[]
@@ -89,16 +125,19 @@ model Message {
 }
 
 model MessageVersion {
-  id        String   @id @default(uuid()) @db.Uuid
-  orgId     String   @db.Uuid
-  messageId String   @db.Uuid
+  id        String        @id @default(uuid()) @db.Uuid
+  orgId     String        @db.Uuid
+  messageId String        @db.Uuid
+  version   Int           // Starts at 1, increments by 1
   body      String
-  createdAt DateTime @default(now())
+  format    MessageFormat @default(MARKDOWN)
+  createdAt DateTime      @default(now())
 
   editorUserId String? @db.Uuid
 
   message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
+  @@unique([orgId, messageId, version])
   @@index([messageId, createdAt])
 }
 
@@ -118,5 +157,44 @@ model Reaction {
 
   @@index([messageId, createdAt])
   @@index([orgId, createdAt])
+}
+
+model ThreadParticipant {
+  id        String                @id @default(uuid()) @db.Uuid
+  orgId     String                @db.Uuid
+  threadId  String                @db.Uuid
+  userId    String                @db.Uuid
+  role      ThreadParticipantRole @default(PARTICIPANT)
+  joinedAt  DateTime              @default(now())
+  leftAt    DateTime?
+  mutedUntil DateTime?
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, threadId, userId])
+  @@index([orgId, threadId])
+  @@index([userId, joinedAt])
+}
+
+model ThreadUserState {
+  id                String           @id @default(uuid()) @db.Uuid
+  orgId             String           @db.Uuid
+  threadId          String           @db.Uuid
+  userId            String           @db.Uuid
+  status            ThreadUserStatus @default(IN_INBOX)
+  needsResponse     Boolean          @default(false)
+  snoozedUntil      DateTime?
+  lastReadMessageId String?         @db.Uuid
+  lastReviewedAt   DateTime?
+  priorityOverride  PriorityOverride @default(NONE)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, threadId, userId])
+  @@index([orgId, userId, status])
+  @@index([orgId, userId, needsResponse])
+  @@index([threadId])
 }
 
