@@ -55,11 +55,12 @@ enum MessageFormat {
 }
 
 model Channel {
-  id         String            @id @default(uuid()) @db.Uuid
-  orgId      String            @db.Uuid
-  name       String
-  slug       String
-  visibility ChannelVisibility @default(ORG)
+  id          String            @id @default(uuid()) @db.Uuid
+  orgId       String            @db.Uuid
+  name        String
+  slug        String
+  description String?
+  visibility  ChannelVisibility @default(ORG)
 
   createdByUserId String? @db.Uuid
   createdAt       DateTime @default(now())

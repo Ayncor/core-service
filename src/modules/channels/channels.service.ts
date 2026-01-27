@@ -6,7 +6,14 @@ import { PrismaService } from "../../shared/storage/prisma.service";
 export class ChannelsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createChannel(input: { orgId: string; name: string; slug: string; visibility?: "ORG" | "PRIVATE"; createdByUserId?: string | null }) {
+  async createChannel(input: {
+    orgId: string;
+    name: string;
+    slug: string;
+    description?: string | null;
+    visibility?: "ORG" | "PRIVATE";
+    createdByUserId?: string | null;
+  }) {
     const existing = await this.prisma.channel.findUnique({
       where: {
         orgId_slug: { orgId: input.orgId, slug: input.slug }
@@ -19,6 +26,7 @@ export class ChannelsService {
         orgId: input.orgId,
         name: input.name,
         slug: input.slug,
+        description: input.description ?? null,
         visibility: (input.visibility ?? "ORG") as any,
         createdByUserId: input.createdByUserId ?? null
       }

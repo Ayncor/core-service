@@ -16,6 +16,7 @@ export class ChannelsController {
       orgId: p.org_id,
       name: body.name,
       slug: body.slug,
+      description: body.description,
       visibility: body.visibility,
       createdByUserId: p.user_id
     });
@@ -25,6 +26,7 @@ export class ChannelsController {
         org_id: ch.orgId,
         name: ch.name,
         slug: ch.slug,
+        description: ch.description ?? null,
         visibility: ch.visibility,
         created_at: ch.createdAt.toISOString()
       }
@@ -41,6 +43,7 @@ export class ChannelsController {
         org_id: c.orgId,
         name: c.name,
         slug: c.slug,
+        description: c.description ?? null,
         visibility: c.visibility,
         created_at: c.createdAt.toISOString()
       }))
