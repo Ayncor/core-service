@@ -29,7 +29,7 @@ export class InboxService {
     const maxLimit = 100;
     const actualLimit = Math.min(limit, maxLimit);
 
-    // Get user states for threads in inbox with thread data
+    // Cursor-based pagination: order includes id for stable cursor; fetch one extra to detect next page.
     const userStates = await this.prisma.threadUserState.findMany({
       where: {
         orgId: input.orgId,
@@ -42,16 +42,22 @@ export class InboxService {
       orderBy: [
         { priorityOverride: "desc" },
         { needsResponse: "desc" },
-        { thread: { lastActivityAt: "desc" } }
+        { thread: { lastActivityAt: "desc" } },
+        { id: "asc" }
       ],
-      take: actualLimit
+      take: actualLimit + 1,
+      skip: input.cursor ? 1 : 0,
+      ...(input.cursor ? { cursor: { id: input.cursor } } : {})
     });
 
-    if (userStates.length === 0) {
-      return [];
+    const hasMore = userStates.length > actualLimit;
+    const page = hasMore ? userStates.slice(0, actualLimit) : userStates;
+
+    if (page.length === 0) {
+      return { items: [], next_cursor: undefined };
     }
 
-    const threadIds = userStates.map((s) => s.thread.id);
+    const threadIds = page.map((s) => s.thread.id);
 
     // Get latest message for each thread
     // Use a subquery approach: get max createdAt per thread, then fetch those messages
@@ -109,7 +115,7 @@ export class InboxService {
     // Build inbox items
     const inboxItems: InboxThread[] = [];
 
-    for (const state of userStates) {
+    for (const state of page) {
       const thread = state.thread;
       const latestMessage = latestByThreadId.get(thread.id);
       const latestVersion = latestMessage?.versions[0];
@@ -156,6 +162,7 @@ export class InboxService {
       });
     }
 
-    return inboxItems;
+    const next_cursor = hasMore ? page[page.length - 1].id : undefined;
+    return { items: inboxItems, next_cursor };
   }
 }

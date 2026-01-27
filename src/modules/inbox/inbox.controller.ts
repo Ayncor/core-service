@@ -15,14 +15,11 @@ export class InboxController {
     @Query("cursor") cursor?: string
   ) {
     const p = req.principal!;
-    const items = await this.inbox.getInbox({
+    return this.inbox.getInbox({
       orgId: p.org_id,
       userId: p.user_id,
       limit: limit ? parseInt(limit, 10) : undefined,
       cursor
     });
-    return {
-      items
-    };
   }
 }
