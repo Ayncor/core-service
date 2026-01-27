@@ -16,8 +16,12 @@ export class MessagesController {
       orgId: p.org_id,
       threadId: body.thread_id,
       body: body.body,
+      kind: body.kind,
       urgency: body.urgency,
       requiresResponse: body.requires_response,
+      replyToMessageId: body.reply_to_message_id,
+      metadataJson: body.metadata_json,
+      format: undefined, // Use default MARKDOWN
       authorUserId: p.user_id,
       authorMembershipId: p.membership_id
     });
@@ -29,13 +33,16 @@ export class MessagesController {
         thread_id: msg.threadId,
         author_user_id: msg.authorUserId,
         author_membership_id: msg.authorMembershipId,
+        kind: msg.kind,
         urgency: msg.urgency,
         requires_response: msg.requiresResponse,
         created_at: msg.createdAt.toISOString(),
         latest_version: v
           ? {
               id: v.id,
+              version: v.version,
               body: v.body,
+              format: v.format,
               created_at: v.createdAt.toISOString()
             }
           : null
@@ -54,13 +61,16 @@ export class MessagesController {
         thread_id: m.threadId,
         author_user_id: m.authorUserId,
         author_membership_id: m.authorMembershipId,
+        kind: m.kind,
         urgency: m.urgency,
         requires_response: m.requiresResponse,
         created_at: m.createdAt.toISOString(),
         latest_version: v
           ? {
               id: v.id,
+              version: v.version,
               body: v.body,
+              format: v.format,
               created_at: v.createdAt.toISOString()
             }
           : null
@@ -79,6 +89,7 @@ export class MessagesController {
       orgId: p.org_id,
       messageId,
       body: body.body,
+      format: body.format,
       editorUserId: p.user_id,
       editorMembershipId: p.membership_id
     });
@@ -86,7 +97,9 @@ export class MessagesController {
       version: {
         id: v.id,
         message_id: v.messageId,
+        version: v.version,
         body: v.body,
+        format: v.format,
         created_at: v.createdAt.toISOString()
       }
     };
@@ -100,7 +113,9 @@ export class MessagesController {
       versions: versions.map((v) => ({
         id: v.id,
         message_id: v.messageId,
+        version: v.version,
         body: v.body,
+        format: v.format,
         created_at: v.createdAt.toISOString()
       }))
     };
