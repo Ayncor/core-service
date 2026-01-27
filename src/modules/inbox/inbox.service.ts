@@ -85,8 +85,8 @@ export class InboxService {
       latestMessagesByThread.filter((x): x is { threadId: string; message: any } => x !== null).map((x) => [x.threadId, x.message])
     );
 
-    // Get unread counts and urgent flags (batch query)
-    const unreadCounts = await this.prisma.message.groupBy({
+    // Total message count per thread (for threads with no lastReadMessageId)
+    const totalCountsByThread = await this.prisma.message.groupBy({
       by: ["threadId"],
       where: {
         orgId: input.orgId,
@@ -95,8 +95,38 @@ export class InboxService {
       },
       _count: true
     });
+    const totalCountsMap = new Map(totalCountsByThread.map((g) => [g.threadId, g._count]));
 
-    const unreadCountsMap = new Map(unreadCounts.map((g) => [g.threadId, g._count]));
+    // lastReadMessageId-based unread: for each state with lastReadMessageId, count messages after that message
+    const lastReadMessageIds = page.map((s) => s.lastReadMessageId).filter((id): id is string => id != null);
+    const lastReadMessages =
+      lastReadMessageIds.length > 0
+        ? await this.prisma.message.findMany({
+            where: { id: { in: lastReadMessageIds } },
+            select: { id: true, createdAt: true }
+          })
+        : [];
+    const lastReadAtByMessageId = new Map(lastReadMessages.map((m) => [m.id, m.createdAt]));
+
+    const lastReadUnreadCounts = await Promise.all(
+      page.map(async (s) => {
+        if (!s.lastReadMessageId) return { threadId: s.thread.id, count: null as number | null };
+        const lastReadAt = lastReadAtByMessageId.get(s.lastReadMessageId);
+        if (!lastReadAt) return { threadId: s.thread.id, count: totalCountsMap.get(s.thread.id) ?? 0 };
+        const count = await this.prisma.message.count({
+          where: {
+            orgId: input.orgId,
+            threadId: s.thread.id,
+            deletedAt: null,
+            createdAt: { gt: lastReadAt }
+          }
+        });
+        return { threadId: s.thread.id, count };
+      })
+    );
+    const lastReadBasedUnreadMap = new Map(
+      lastReadUnreadCounts.filter((x) => x.count != null).map((x) => [x.threadId, x.count!])
+    );
 
     // Get urgent messages (batch query)
     const urgentThreads = await this.prisma.message.findMany({
@@ -120,15 +150,9 @@ export class InboxService {
       const latestMessage = latestByThreadId.get(thread.id);
       const latestVersion = latestMessage?.versions[0];
 
-      // Calculate unread count
-      // For now, use total count (can be optimized later with lastReadMessageId tracking)
-      const totalCount = unreadCountsMap.get(thread.id) ?? 0;
-      let unreadCount = totalCount;
-      if (state.lastReadMessageId) {
-        // TODO: Optimize with proper date-based query
-        // For now, use total count as approximation
-        unreadCount = totalCount;
-      }
+      // Unread count: when lastReadMessageId is set, count messages with createdAt > that message; otherwise total messages in thread
+      const totalCount = totalCountsMap.get(thread.id) ?? 0;
+      const unreadCount = lastReadBasedUnreadMap.get(thread.id) ?? totalCount;
 
       const hasUrgentUnread = urgentThreadIds.has(thread.id) && unreadCount > 0;
 
