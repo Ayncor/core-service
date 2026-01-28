@@ -20,6 +20,7 @@ Create `.env` (copy from `.env.example`) and set:
 
 - `DATABASE_URL` (points at the Postgres container)
 - `JWT_ACCESS_SECRET` (must match `identity-service` so access tokens validate)
+- `REDIS_URL` (for outbox relay → realtime-gateway; optional if you skip the relay)
 
 Run Prisma + server:
 
@@ -30,6 +31,32 @@ npm run start:dev
 ```
 
 Server runs on **port 3002** by default.
+
+### Outbox and relay (realtime events)
+
+Domain writes (create message, create message version, create thread, set thread state, add reaction) append **event envelopes** to an **outbox** in the same DB transaction. A separate **relay** process polls the outbox, publishes to Redis (`realtime:events` by default), and marks rows as published. The realtime-gateway subscribes to that channel and fans out to WebSocket clients.
+
+**Steps to run relay (Set core-service `.env`):**
+
+1. Start Redis (e.g. `cd realtime-gateway && docker compose up -d`).
+2. Start core-service: `npm run start:dev`.
+3. In another terminal, from core-service: `npm run relay`.
+4. Optionally start realtime-gateway so WebSocket clients receive events: `cd realtime-gateway && npm run start:dev`.
+
+To run the relay (requires `DATABASE_URL` and `REDIS_URL`):
+
+```bash
+npm run relay
+```
+
+Env (see `.env.example`):
+
+- `REDIS_URL` – Redis connection (e.g. `redis://localhost:6379`)
+- `REDIS_CHANNEL` – default `realtime:events` (must match realtime-gateway’s `REDIS_CHANNEL`)
+- `RELAY_POLL_MS` – poll interval in ms (default 500)
+- `RELAY_BATCH_SIZE` – batch size per poll (default 100)
+
+Emitted event types: `Core.MessageCreated`, `Core.MessageVersionCreated`, `Core.ThreadCreated`, `Core.ThreadStateChanged`, `Core.ReactionAdded`. Envelope shape follows `contracts/v1/events/envelope.schema.json`.
 
 ### Authentication
 
@@ -400,7 +427,7 @@ Add a participant to a thread.
 }
 ```
 
-**Note:** `role` can be `OWNER`, `PARTICIPANT`, or `OBSERVER`. Defaults to `PARTICIPANT`. A user state is automatically created when a participant is added.
+**Note:** `role` can be `OWNER`, `PARTICIPANT`, or `OBSERVER`. Defaults to `PARTICIPANT`. A user state is automatically created when a participant is added. A system message (`kind: "SYSTEM"`) is also created in the thread with `metadata.system_type: "participant_added"` (or `"participant_rejoined"` if the user had previously left), so the thread timeline shows "X joined" / "Y added X" when listing messages.
 
 #### `GET /threads/:threadId/participants`
 List all active participants in a thread.
@@ -752,5 +779,6 @@ Write-Host "Updated inbox - First item unread count: $($inbox2.items[0].unread_c
 - **Immutable messages**: Edits create new `MessageVersion` records (append-only)
 - **Thread state machine**: Simple transitions; `ARCHIVED` is terminal
 - **Soft deletes**: Messages use `deletedAt`; channels/threads use `archivedAt`
-- **Async-first**: No real-time features here; designed for async consumption
+- **Outbox + relay**: Domain events are written to `OutboxEvent` in the same transaction as the write. A separate relay process publishes to Redis for realtime-gateway, then marks events as published. This matches production: at-most-once publish, no direct dependency from HTTP to Redis.
+- **Async-first**: Designed for async consumption; realtime is provided by realtime-gateway via the relay
 

@@ -199,3 +199,20 @@ model ThreadUserState {
   @@index([threadId])
 }
 
+// --- Outbox for event relay (core-service → realtime-gateway via Redis) ---
+// Envelope shape matches contracts/v1/events/envelope.schema.json (EventEnvelopeV1).
+enum OutboxStatus {
+  PENDING
+  PUBLISHED
+}
+
+model OutboxEvent {
+  id          String       @id @default(uuid()) @db.Uuid
+  envelope    Json         // full EventEnvelope (event_id, event_type, org_id, entity_ref, payload, ...)
+  status      OutboxStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+  publishedAt DateTime?
+
+  @@index([status, createdAt])
+}
+

@@ -11,24 +11,24 @@ export class ParticipantsService {
     threadId: string;
     userId: string;
     role?: "OWNER" | "PARTICIPANT" | "OBSERVER";
+    addedByUserId?: string;
   }) {
     const thread = await this.prisma.thread.findUnique({ where: { id: input.threadId } });
     if (!thread) throw new NotFoundException("Thread not found");
     if (thread.orgId !== input.orgId) throw new ForbiddenException("Forbidden");
 
-    // Check if participant already exists (not left)
+    // Find any participant record for this user in this thread (active or left)
     const existing = await this.prisma.threadParticipant.findFirst({
       where: {
         orgId: input.orgId,
         threadId: input.threadId,
-        userId: input.userId,
-        leftAt: null
+        userId: input.userId
       }
     });
 
     if (existing) {
-      // Re-join if they left
       if (existing.leftAt) {
+        // Re-join: they had left, now being re-added
         return await this.prisma.$transaction(async (tx) => {
           const participant = await tx.threadParticipant.update({
             where: { id: existing.id },
@@ -58,6 +58,40 @@ export class ParticipantsService {
                 threadId: input.threadId,
                 userId: input.userId
               }
+            });
+          }
+
+          // System message: "X re-joined" / "Y re-added X"
+          if (input.addedByUserId) {
+            const sysMsg = await tx.message.create({
+              data: {
+                orgId: input.orgId,
+                threadId: input.threadId,
+                authorUserId: input.addedByUserId,
+                authorMembershipId: null,
+                kind: "SYSTEM",
+                urgency: "NORMAL",
+                requiresResponse: false,
+                metadataJson: {
+                  system_type: "participant_rejoined",
+                  added_user_id: input.userId,
+                  added_by_user_id: input.addedByUserId
+                }
+              }
+            });
+            await tx.messageVersion.create({
+              data: {
+                orgId: input.orgId,
+                messageId: sysMsg.id,
+                version: 1,
+                body: "Participant re-joined the thread",
+                format: "PLAIN",
+                editorUserId: input.addedByUserId
+              }
+            });
+            await tx.thread.update({
+              where: { id: input.threadId },
+              data: { lastActivityAt: new Date() }
             });
           }
 
@@ -95,6 +129,41 @@ export class ParticipantsService {
             threadId: input.threadId,
             userId: input.userId
           }
+        });
+      }
+
+      // System message so the thread shows "X joined" / "Y added X" when listing messages
+      const thread = await tx.thread.findUnique({ where: { id: input.threadId } });
+      if (thread && input.addedByUserId) {
+        const sysMsg = await tx.message.create({
+          data: {
+            orgId: input.orgId,
+            threadId: input.threadId,
+            authorUserId: input.addedByUserId,
+            authorMembershipId: null,
+            kind: "SYSTEM",
+            urgency: "NORMAL",
+            requiresResponse: false,
+            metadataJson: {
+              system_type: "participant_added",
+              added_user_id: input.userId,
+              added_by_user_id: input.addedByUserId
+            }
+          }
+        });
+        await tx.messageVersion.create({
+          data: {
+            orgId: input.orgId,
+            messageId: sysMsg.id,
+            version: 1,
+            body: "Participant joined the thread",
+            format: "PLAIN",
+            editorUserId: input.addedByUserId
+          }
+        });
+        await tx.thread.update({
+          where: { id: input.threadId },
+          data: { lastActivityAt: new Date() }
         });
       }
 
