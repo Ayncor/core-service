@@ -11,6 +11,7 @@ import { ReactionsModule } from "./modules/reactions/reactions.module";
 import { ParticipantsModule } from "./modules/participants/participants.module";
 import { UserStateModule } from "./modules/user-state/user-state.module";
 import { InboxModule } from "./modules/inbox/inbox.module";
+import { OutboxModule } from "./modules/outbox/outbox.module";
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { InboxModule } from "./modules/inbox/inbox.module";
     AuthModule,
     StorageModule,
     HealthModule,
+    OutboxModule,
     ChannelsModule,
     ThreadsModule,
     MessagesModule,
