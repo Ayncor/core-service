@@ -1,10 +1,18 @@
 import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 
 import { PrismaService } from "../../shared/storage/prisma.service";
+import type { OutboxTransaction } from "../outbox/outbox.service";
+import { OutboxService } from "../outbox/outbox.service";
+import type { EventEnvelope } from "../../shared/events/event-envelope";
+import { EVENT_TYPES } from "../../shared/events/event-envelope";
 
 @Injectable()
 export class MessagesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly outbox: OutboxService
+  ) {}
 
   async createMessage(input: {
     orgId: string;
@@ -63,6 +71,37 @@ export class MessagesService {
         where: { id: input.threadId },
         data: { lastActivityAt: new Date() }
       });
+
+      const occurredAt = new Date();
+      const envelope: EventEnvelope = {
+        event_id: randomUUID(),
+        event_type: EVENT_TYPES.CoreMessageCreated,
+        schema_version: 1,
+        occurred_at: occurredAt.toISOString(),
+        org_id: input.orgId,
+        actor_user_id: input.authorUserId ?? null,
+        trace_id: null,
+        ordering_key: input.threadId,
+        entity_ref: { type: "message", id: msg.id },
+        payload: {
+          message_id: msg.id,
+          thread_id: input.threadId,
+          author_id: input.authorUserId ?? msg.authorUserId ?? "",
+          kind: msg.kind,
+          urgency: msg.urgency,
+          requires_response: msg.requiresResponse,
+          reply_to_message_id: msg.replyToMessageId ?? null,
+          metadata_json: msg.metadataJson ?? {},
+          latest_version: {
+            version: v.version,
+            body: v.body,
+            format: v.format,
+            created_at: v.createdAt.toISOString(),
+            created_by: v.editorUserId ?? input.authorUserId ?? ""
+          }
+        }
+      };
+      await this.outbox.appendInTransaction(tx as unknown as OutboxTransaction, envelope);
 
       return { msg, v };
     });
@@ -137,6 +176,28 @@ export class MessagesService {
         where: { id: msg.threadId },
         data: { lastActivityAt: new Date() }
       });
+
+      const occurredAt = new Date();
+      const envelope: EventEnvelope = {
+        event_id: randomUUID(),
+        event_type: EVENT_TYPES.CoreMessageVersionCreated,
+        schema_version: 1,
+        occurred_at: occurredAt.toISOString(),
+        org_id: input.orgId,
+        actor_user_id: input.editorUserId,
+        trace_id: null,
+        ordering_key: input.messageId,
+        entity_ref: { type: "message", id: input.messageId },
+        payload: {
+          message_id: input.messageId,
+          version: nextVersion,
+          body: input.body,
+          format: (input.format ?? "MARKDOWN") as string,
+          created_at: version.createdAt.toISOString(),
+          created_by: input.editorUserId
+        }
+      };
+      await this.outbox.appendInTransaction(tx as unknown as OutboxTransaction, envelope);
 
       return version;
     });
