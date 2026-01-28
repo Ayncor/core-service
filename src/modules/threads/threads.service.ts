@@ -1,10 +1,18 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 
 import { PrismaService } from "../../shared/storage/prisma.service";
+import type { OutboxTransaction } from "../outbox/outbox.service";
+import { OutboxService } from "../outbox/outbox.service";
+import type { EventEnvelope } from "../../shared/events/event-envelope";
+import { EVENT_TYPES } from "../../shared/events/event-envelope";
 
 @Injectable()
 export class ThreadsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly outbox: OutboxService
+  ) {}
 
   async createThread(input: {
     orgId: string;
@@ -52,6 +60,29 @@ export class ThreadsService {
         });
       }
 
+      const occurredAt = new Date();
+      const envelope: EventEnvelope = {
+        event_id: randomUUID(),
+        event_type: EVENT_TYPES.CoreThreadCreated,
+        schema_version: 1,
+        occurred_at: occurredAt.toISOString(),
+        org_id: input.orgId,
+        actor_user_id: input.createdByUserId ?? null,
+        trace_id: null,
+        ordering_key: thread.id,
+        entity_ref: { type: "thread", id: thread.id },
+        payload: {
+          thread_id: thread.id,
+          channel_id: input.channelId,
+          title: input.title,
+          purpose: input.purpose ?? null,
+          state: thread.state,
+          created_by: input.createdByUserId ?? "",
+          participant_user_ids: input.createdByUserId ? [input.createdByUserId] : []
+        }
+      };
+      await this.outbox.appendInTransaction(tx as unknown as OutboxTransaction, envelope);
+
       return thread;
     });
   }
@@ -81,12 +112,36 @@ export class ThreadsService {
       throw new ConflictException("Invalid thread state");
     }
 
-    return await this.prisma.thread.update({
-      where: { id: input.threadId },
-      data: {
-        state: next as any,
-        archivedAt: next === "ARCHIVED" ? new Date() : null
-      }
+    return await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.thread.update({
+        where: { id: input.threadId },
+        data: {
+          state: next as any,
+          archivedAt: next === "ARCHIVED" ? new Date() : null
+        }
+      });
+
+      const occurredAt = new Date();
+      const envelope: EventEnvelope = {
+        event_id: randomUUID(),
+        event_type: EVENT_TYPES.CoreThreadStateChanged,
+        schema_version: 1,
+        occurred_at: occurredAt.toISOString(),
+        org_id: input.orgId,
+        actor_user_id: null,
+        trace_id: null,
+        ordering_key: input.threadId,
+        entity_ref: { type: "thread", id: input.threadId },
+        payload: {
+          thread_id: input.threadId,
+          from_state: thread.state,
+          to_state: next,
+          reason: "user_request"
+        }
+      };
+      await this.outbox.appendInTransaction(tx as unknown as OutboxTransaction, envelope);
+
+      return updated;
     });
   }
 }
