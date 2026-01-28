@@ -16,7 +16,8 @@ export class ParticipantsController {
       orgId: p.org_id,
       threadId,
       userId: body.user_id,
-      role: body.role
+      role: body.role,
+      addedByUserId: p.user_id
     });
     return {
       participant: {
