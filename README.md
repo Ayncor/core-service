@@ -601,8 +601,16 @@ Get the current user's inbox (threads with status `IN_INBOX`), ordered by priori
 
 To run a full end-to-end check of all endpoints (identity-service and core-service must be running):
 
+**Windows (PowerShell):**
 ```powershell
 .\test-endpoints.ps1
+```
+
+**macOS / Linux (Bash):**
+```bash
+chmod +x test-endpoints.sh   # once, to make executable
+./test-endpoints.sh          # default: identity 3001, core 3002
+./test-endpoints.sh http://localhost:3001 http://localhost:3002   # optional URLs
 ```
 
 This script logs in, creates channel/thread/message, exercises reactions, user-state, inbox, message versions, thread state, and participant add/update/delete. It uses a unique channel slug per run to avoid conflicts.
