@@ -80,6 +80,12 @@ All operations are **org-scoped** — users can only access resources within the
 
 ---
 
+## API Documentation
+
+**Postman collection:** `coreAPI.postman_collection.json` — import into Postman for all endpoints (Health, Channels, Threads, Participants, User State, Inbox, Messages, Reactions). Set `baseUrl` to `http://localhost:3002` for local dev. Canonical spec: `contracts/v1/openapi/core-service.openapi.yaml`.
+
+---
+
 ## API Endpoints
 
 ### Health
