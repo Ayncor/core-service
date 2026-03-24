@@ -563,7 +563,7 @@
                 "versions"
               ]
             },
-            "description": "List versions of a message (oldest first)."
+            "description": "List versions of a message (newest first)."
           },
           "response": []
         }
@@ -624,7 +624,7 @@
                 "{{messageId}}"
               ]
             },
-            "description": "List reactions on message."
+            "description": "List reactions on message grouped by emoji with count and `me` (whether current user reacted)."
           },
           "response": []
         }
