@@ -28,7 +28,8 @@ export class ThreadsController {
         state: t.state,
         title: t.title,
         purpose: t.purpose,
-        created_at: t.createdAt.toISOString()
+        created_at: t.createdAt.toISOString(),
+        last_activity_at: t.lastActivityAt.toISOString()
       }
     };
   }
@@ -45,7 +46,8 @@ export class ThreadsController {
         state: t.state,
         title: t.title,
         purpose: t.purpose,
-        created_at: t.createdAt.toISOString()
+        created_at: t.createdAt.toISOString(),
+        last_activity_at: t.lastActivityAt.toISOString()
       }))
     };
   }
@@ -67,6 +69,7 @@ export class ThreadsController {
         title: t.title,
         purpose: t.purpose,
         created_at: t.createdAt.toISOString(),
+        last_activity_at: t.lastActivityAt.toISOString(),
         archived_at: t.archivedAt ? t.archivedAt.toISOString() : null
       }
     };
