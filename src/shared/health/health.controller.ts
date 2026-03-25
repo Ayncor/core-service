@@ -4,7 +4,7 @@ import { PrismaService } from "../storage/prisma.service";
 
 @Controller("health")
 export class HealthController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   @Get()
   live() {
