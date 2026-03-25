@@ -109,5 +109,14 @@ CODING STYLE & EXPECTATIONS
 - Comment non-obvious business rules.
 - Optimize for correctness over micro-performance.
 
+────────────────────────────────────────
+LOGGING (REQUIRED)
+────────────────────────────────────────
+
+- Do not use `console.*` directly. Use the shared logger util:
+  - API: `core-service/src/shared/logger/logger.ts` (`logger`)
+  - Relay: `core-service/src/shared/logger/logger.ts` (`relayLogger`)
+- `logger.debug(...)` output must remain gated (already gated by `DEBUG`).
+
 Push back if a request violates async-first design,
 domain boundaries, or contract integrity.
