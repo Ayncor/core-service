@@ -6,6 +6,7 @@ import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import Redis from "ioredis";
 import { PrismaClient } from "../generated/prisma/client";
+import { relayLogger as log } from "../shared/logger/logger";
 
 const DATABASE_URL = process.env.DATABASE_URL ?? "";
 const REDIS_URL = process.env.REDIS_URL ?? "";
@@ -14,11 +15,11 @@ const POLL_MS = Number(process.env.RELAY_POLL_MS) || 500;
 const BATCH_SIZE = Number(process.env.RELAY_BATCH_SIZE) || 100;
 
 if (!DATABASE_URL) {
-  console.error("DATABASE_URL is required");
+  log.error("DATABASE_URL is required");
   process.exit(1);
 }
 if (!REDIS_URL) {
-  console.error("REDIS_URL is required");
+  log.error("REDIS_URL is required");
   process.exit(1);
 }
 
@@ -31,7 +32,7 @@ let lastRedisErrorLog = 0;
 redis.on("error", (err: Error) => {
   const now = Date.now();
   if (now - lastRedisErrorLog >= 5000) {
-    console.error("[relay] Redis error (is Redis running? check REDIS_URL):", err.message);
+    log.error("Redis error (is Redis running? check REDIS_URL)", err);
     lastRedisErrorLog = now;
   }
 });
@@ -58,19 +59,19 @@ async function runBatch(): Promise<number> {
 
 async function loop(): Promise<never> {
   await prisma.$connect();
-  console.log(`[relay] started; channel=${REDIS_CHANNEL} poll_ms=${POLL_MS}`);
+  log.info(`started; channel=${REDIS_CHANNEL} poll_ms=${POLL_MS}`);
   for (;;) {
     try {
       const n = await runBatch();
-      if (n > 0) console.log(`[relay] published ${n} event(s)`);
+      if (n > 0) log.info(`published ${n} event(s)`);
     } catch (err) {
-      console.error("[relay] batch error", err);
+      log.error("batch error", err);
     }
     await new Promise((r) => setTimeout(r, POLL_MS));
   }
 }
 
 loop().catch((err) => {
-  console.error("[relay] fatal", err);
+  log.error("fatal", err);
   process.exit(1);
 });
