@@ -490,7 +490,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/messages/thread/{{threadId}}",
+              "raw": "{{baseUrl}}/messages/thread/{{threadId}}?limit=50",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -498,9 +498,22 @@
                 "messages",
                 "thread",
                 "{{threadId}}"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Page size (default 50, max 200). Newest messages first."
+                },
+                {
+                  "key": "cursor",
+                  "value": "{{messageListCursor}}",
+                  "description": "Opaque next_cursor from previous response; omit on first page.",
+                  "disabled": true
+                }
               ]
             },
-            "description": "List messages in thread with latest version."
+            "description": "Cursor-based pagination: newest first. Repeat with cursor={{next_cursor}} from the response to load older messages (infinite scroll). next_cursor omitted on last page."
           },
           "response": []
         },
@@ -650,6 +663,10 @@
     },
     {
       "key": "messageId",
+      "value": ""
+    },
+    {
+      "key": "messageListCursor",
       "value": ""
     },
     {
