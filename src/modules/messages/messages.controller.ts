@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
 
 import { JwtAuthGuard, type RequestWithPrincipal } from "../../shared/auth/auth.guard";
 import { CreateMessageRequestDto, CreateMessageVersionRequestDto } from "./messages.dto";
@@ -7,7 +7,7 @@ import { MessagesService } from "./messages.service";
 @Controller("messages")
 @UseGuards(JwtAuthGuard)
 export class MessagesController {
-  constructor(private readonly messages: MessagesService) {}
+  constructor(private readonly messages: MessagesService) { }
 
   @Post()
   async create(@Req() req: RequestWithPrincipal, @Body() body: CreateMessageRequestDto) {
@@ -39,23 +39,32 @@ export class MessagesController {
         created_at: msg.createdAt.toISOString(),
         latest_version: v
           ? {
-              id: v.id,
-              version: v.version,
-              body: v.body,
-              format: v.format,
-              created_at: v.createdAt.toISOString()
-            }
+            id: v.id,
+            version: v.version,
+            body: v.body,
+            format: v.format,
+            created_at: v.createdAt.toISOString()
+          }
           : null
       }
     };
   }
 
   @Get("thread/:threadId")
-  async listForThread(@Req() req: RequestWithPrincipal, @Param("threadId") threadId: string) {
+  async listForThread(
+    @Req() req: RequestWithPrincipal,
+    @Param("threadId") threadId: string,
+    @Query("limit") limitStr?: string,
+    @Query("cursor") cursor?: string
+  ) {
     const p = req.principal!;
-    const items = await this.messages.listMessages(p.org_id, threadId);
+    const limit = limitStr !== undefined && limitStr !== "" ? parseInt(limitStr, 10) : undefined;
+    const { rows, next_cursor } = await this.messages.listMessagesForThread(p.org_id, threadId, {
+      limit: Number.isFinite(limit) ? limit : undefined,
+      cursor: cursor !== undefined && cursor !== "" ? cursor : undefined
+    });
     return {
-      messages: items.map(({ message: m, latest: v }) => ({
+      messages: rows.map(({ message: m, latest: v }) => ({
         id: m.id,
         org_id: m.orgId,
         thread_id: m.threadId,
@@ -67,14 +76,15 @@ export class MessagesController {
         created_at: m.createdAt.toISOString(),
         latest_version: v
           ? {
-              id: v.id,
-              version: v.version,
-              body: v.body,
-              format: v.format,
-              created_at: v.createdAt.toISOString()
-            }
+            id: v.id,
+            version: v.version,
+            body: v.body,
+            format: v.format,
+            created_at: v.createdAt.toISOString()
+          }
           : null
-      }))
+      })),
+      ...(next_cursor !== undefined ? { next_cursor } : {})
     };
   }
 
