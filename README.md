@@ -67,6 +67,7 @@ Authorization: Bearer <access_token>
 ```
 
 The token includes:
+
 - `sub` (user_id)
 - `org_id` (organization ID)
 - `membership_id` (membership ID)
@@ -91,9 +92,11 @@ All operations are **org-scoped** — users can only access resources within the
 ### Health
 
 #### `GET /health`
+
 Liveness check (no auth required).
 
 **Response:**
+
 ```json
 {
   "status": "ok",
@@ -102,9 +105,11 @@ Liveness check (no auth required).
 ```
 
 #### `GET /health/ready`
+
 Readiness check with DB connectivity (no auth required).
 
 **Response:**
+
 ```json
 {
   "status": "ok",
@@ -119,9 +124,11 @@ Readiness check with DB connectivity (no auth required).
 ### Channels
 
 #### `POST /channels`
+
 Create a new channel.
 
 **Request:**
+
 ```json
 {
   "name": "General",
@@ -131,6 +138,7 @@ Create a new channel.
 ```
 
 **Response:**
+
 ```json
 {
   "channel": {
@@ -145,9 +153,11 @@ Create a new channel.
 ```
 
 #### `GET /channels`
+
 List all channels in the organization.
 
 **Response:**
+
 ```json
 {
   "channels": [
@@ -168,9 +178,11 @@ List all channels in the organization.
 ### Threads
 
 #### `POST /threads`
+
 Create a new thread in a channel.
 
 **Request:**
+
 ```json
 {
   "channel_id": "uuid",
@@ -180,6 +192,7 @@ Create a new thread in a channel.
 ```
 
 **Response:**
+
 ```json
 {
   "thread": {
@@ -195,9 +208,11 @@ Create a new thread in a channel.
 ```
 
 #### `GET /threads/channel/:channelId`
+
 List all threads in a channel.
 
 **Response:**
+
 ```json
 {
   "threads": [
@@ -215,9 +230,11 @@ List all threads in a channel.
 ```
 
 #### `POST /threads/:threadId/state`
+
 Update thread state (OPEN, BLOCKED, DECIDED, ARCHIVED).
 
 **Request:**
+
 ```json
 {
   "state": "BLOCKED"
@@ -225,6 +242,7 @@ Update thread state (OPEN, BLOCKED, DECIDED, ARCHIVED).
 ```
 
 **Response:**
+
 ```json
 {
   "thread": {
@@ -247,9 +265,11 @@ Update thread state (OPEN, BLOCKED, DECIDED, ARCHIVED).
 ### Messages
 
 #### `POST /messages`
+
 Create a new message in a thread.
 
 **Request:**
+
 ```json
 {
   "thread_id": "uuid",
@@ -260,6 +280,7 @@ Create a new message in a thread.
 ```
 
 **Response:**
+
 ```json
 {
   "message": {
@@ -281,9 +302,16 @@ Create a new message in a thread.
 ```
 
 #### `GET /messages/thread/:threadId`
-List all messages in a thread (with latest version).
+
+List messages in a thread (with latest version per message). **Cursor pagination**, **newest first** (by `created_at`, then `id`).
+
+**Query params:**
+
+- `limit` — optional, default `50`, max `200`
+- `cursor` — optional; opaque `next_cursor` from the previous response to load **older** messages (infinite scroll). Do not parse client-side.
 
 **Response:**
+
 ```json
 {
   "messages": [
@@ -302,14 +330,19 @@ List all messages in a thread (with latest version).
         "created_at": "2026-01-26T12:00:00.000Z"
       }
     }
-  ]
+  ],
+  "next_cursor": "opaque-base64url-string"
 }
 ```
 
+`next_cursor` is omitted when there are no more older messages. `400` if `cursor` or `limit` is invalid.
+
 #### `POST /messages/:messageId/versions`
+
 Create a new message version (edit). Messages are **immutable** — edits create new versions.
 
 **Request:**
+
 ```json
 {
   "body": "Updated message content"
@@ -317,6 +350,7 @@ Create a new message version (edit). Messages are **immutable** — edits create
 ```
 
 **Response:**
+
 ```json
 {
   "version": {
@@ -329,9 +363,11 @@ Create a new message version (edit). Messages are **immutable** — edits create
 ```
 
 #### `GET /messages/:messageId/versions`
+
 List all versions of a message (history, newest first).
 
 **Response:**
+
 ```json
 {
   "versions": [
@@ -356,9 +392,11 @@ List all versions of a message (history, newest first).
 ### Reactions
 
 #### `POST /reactions`
+
 Toggle a reaction on a message (add if not present, remove if present).
 
 **Request:**
+
 ```json
 {
   "message_id": "uuid",
@@ -367,6 +405,7 @@ Toggle a reaction on a message (add if not present, remove if present).
 ```
 
 **Response:**
+
 ```json
 {
   "action": "added",
@@ -382,9 +421,11 @@ Toggle a reaction on a message (add if not present, remove if present).
 ```
 
 #### `GET /reactions/message/:messageId`
+
 List all reactions for a message (grouped by emoji, with counts and whether the current user reacted).
 
 **Response:**
+
 ```json
 {
   "reactions": [
@@ -407,9 +448,11 @@ List all reactions for a message (grouped by emoji, with counts and whether the 
 ### Thread Participants
 
 #### `POST /threads/:threadId/participants`
+
 Add a participant to a thread.
 
 **Request:**
+
 ```json
 {
   "user_id": "uuid",
@@ -418,6 +461,7 @@ Add a participant to a thread.
 ```
 
 **Response:**
+
 ```json
 {
   "participant": {
@@ -436,9 +480,11 @@ Add a participant to a thread.
 **Note:** `role` can be `OWNER`, `PARTICIPANT`, or `OBSERVER`. Defaults to `PARTICIPANT`. A user state is automatically created when a participant is added. A system message (`kind: "SYSTEM"`) is also created in the thread with `metadata.system_type: "participant_added"` (or `"participant_rejoined"` if the user had previously left), so the thread timeline shows "X joined" / "Y added X" when listing messages.
 
 #### `GET /threads/:threadId/participants`
+
 List all active participants in a thread.
 
 **Response:**
+
 ```json
 {
   "participants": [
@@ -457,9 +503,11 @@ List all active participants in a thread.
 ```
 
 #### `PATCH /threads/:threadId/participants/:userId`
+
 Update a participant's role or mute status.
 
 **Request:**
+
 ```json
 {
   "role": "OBSERVER",
@@ -468,6 +516,7 @@ Update a participant's role or mute status.
 ```
 
 **Response:**
+
 ```json
 {
   "participant": {
@@ -484,9 +533,11 @@ Update a participant's role or mute status.
 ```
 
 #### `DELETE /threads/:threadId/participants/:userId`
+
 Remove a participant from a thread (soft delete - sets `left_at`).
 
 **Response:**
+
 ```json
 {
   "status": "removed"
@@ -498,9 +549,11 @@ Remove a participant from a thread (soft delete - sets `left_at`).
 ### Thread User State
 
 #### `GET /threads/:threadId/user-state`
+
 Get the current user's state for a thread (creates default state if it doesn't exist).
 
 **Response:**
+
 ```json
 {
   "user_state": {
@@ -521,9 +574,11 @@ Get the current user's state for a thread (creates default state if it doesn't e
 ```
 
 #### `PATCH /threads/:threadId/user-state`
+
 Update the current user's state for a thread.
 
 **Request:**
+
 ```json
 {
   "status": "SNOOZED",
@@ -543,13 +598,16 @@ Update the current user's state for a thread.
 ### Inbox
 
 #### `GET /inbox`
+
 Get the current user's inbox (threads with status `IN_INBOX`), ordered by priority and activity.
 
 **Query params:**
+
 - `limit` (optional, default: 50, max: 100)
 - `cursor` (optional, for pagination)
 
 **Response:**
+
 ```json
 {
   "items": [
@@ -573,11 +631,13 @@ Get the current user's inbox (threads with status `IN_INBOX`), ordered by priori
 ```
 
 **Sorting:** Items are sorted by:
+
 1. `priority_override` (HIGH > LOW > NONE)
 2. `needs_response` (true > false)
 3. `thread_last_activity_at` (newest first)
 
 **Next Actions:**
+
 - `RESPOND` - User needs to respond
 - `REVIEW` - Has unread messages
 - `WAIT` - Thread is blocked
@@ -588,16 +648,19 @@ Get the current user's inbox (threads with status `IN_INBOX`), ordered by priori
 ## Data Model
 
 ### Thread States
+
 - **OPEN**: Active discussion
 - **BLOCKED**: Waiting on something
 - **DECIDED**: Decision made (can add decision note later)
 - **ARCHIVED**: Terminal state (cannot transition out)
 
 ### Message Urgency
+
 - **NORMAL**: Default
 - **URGENT**: Bypasses digest scheduling (future feature)
 
 ### Channel Visibility
+
 - **ORG**: Visible to all org members
 - **PRIVATE**: Restricted (future feature)
 
@@ -608,11 +671,13 @@ Get the current user's inbox (threads with status `IN_INBOX`), ordered by priori
 To run a full end-to-end check of all endpoints (identity-service and core-service must be running):
 
 **Windows (PowerShell):**
+
 ```powershell
 .\test-endpoints.ps1
 ```
 
 **macOS / Linux (Bash):**
+
 ```bash
 chmod +x test-endpoints.sh   # once, to make executable
 ./test-endpoints.sh          # default: identity 3001, core 3002
@@ -795,4 +860,3 @@ Write-Host "Updated inbox - First item unread count: $($inbox2.items[0].unread_c
 - **Soft deletes**: Messages use `deletedAt`; channels/threads use `archivedAt`
 - **Outbox + relay**: Domain events are written to `OutboxEvent` in the same transaction as the write. A separate relay process publishes to Redis for realtime-gateway, then marks events as published. This matches production: at-most-once publish, no direct dependency from HTTP to Redis.
 - **Async-first**: Designed for async consumption; realtime is provided by realtime-gateway via the relay
-

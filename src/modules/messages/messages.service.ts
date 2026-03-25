@@ -1,18 +1,20 @@
-import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 
+import type { Message, MessageVersion } from "../../generated/prisma/client";
 import { PrismaService } from "../../shared/storage/prisma.service";
 import type { OutboxTransaction } from "../outbox/outbox.service";
 import { OutboxService } from "../outbox/outbox.service";
 import type { EventEnvelope } from "../../shared/events/event-envelope";
 import { EVENT_TYPES } from "../../shared/events/event-envelope";
+import { decodeThreadMessageCursor, encodeThreadMessageCursor } from "./thread-message-cursor";
 
 @Injectable()
 export class MessagesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly outbox: OutboxService
-  ) {}
+  ) { }
 
   async createMessage(input: {
     orgId: string;
@@ -107,30 +109,73 @@ export class MessagesService {
     });
   }
 
-  async listMessages(orgId: string, threadId: string) {
+  /**
+   * Cursor-based pagination: newest messages first.
+   * Pass `next_cursor` from the previous response to load older messages.
+   */
+  async listMessagesForThread(
+    orgId: string,
+    threadId: string,
+    options?: { limit?: number; cursor?: string }
+  ): Promise<{
+    rows: Array<{ message: Message; latest: MessageVersion | null }>;
+    next_cursor: string | undefined;
+  }> {
     const thread = await this.prisma.thread.findUnique({ where: { id: threadId } });
     if (!thread) throw new NotFoundException("Thread not found");
     if (thread.orgId !== orgId) throw new ForbiddenException("Forbidden");
 
-    const msgs = await this.prisma.message.findMany({
-      where: { orgId, threadId, deletedAt: null },
-      orderBy: [{ createdAt: "asc" }, { id: "asc" }]
-    });
+    const defaultLimit = 50;
+    const maxLimit = 200;
+    const raw = options?.limit;
+    let parsedLimit = raw === undefined ? defaultLimit : Number(raw);
+    if (!Number.isFinite(parsedLimit) || parsedLimit < 1) {
+      throw new BadRequestException("Invalid limit");
+    }
+    const pageSize = Math.min(Math.floor(parsedLimit), maxLimit);
 
-    const versions = await this.prisma.messageVersion.findMany({
-      where: { orgId, messageId: { in: msgs.map((m) => m.id) } },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }]
-    });
+    const whereBase = { orgId, threadId, deletedAt: null };
 
-    const latestByMessageId = new Map<string, (typeof versions)[number]>();
-    for (const v of versions) {
-      if (!latestByMessageId.has(v.messageId)) latestByMessageId.set(v.messageId, v);
+    let cursorWhere: { OR: Array<Record<string, unknown>> } | undefined;
+    if (options?.cursor !== undefined && options.cursor !== "") {
+      const { createdAt, id } = decodeThreadMessageCursor(options.cursor, threadId, orgId);
+      cursorWhere = {
+        OR: [{ createdAt: { lt: createdAt } }, { AND: [{ createdAt }, { id: { lt: id } }] }]
+      };
     }
 
-    return msgs.map((m) => ({
-      message: m,
-      latest: latestByMessageId.get(m.id) ?? null
-    }));
+    const msgs = await this.prisma.message.findMany({
+      where: cursorWhere ? { AND: [whereBase, cursorWhere] } : whereBase,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: pageSize + 1
+    });
+
+    const hasMore = msgs.length > pageSize;
+    const page = hasMore ? msgs.slice(0, pageSize) : msgs;
+
+    const ids = page.map((m) => m.id);
+    const latestByMessageId = new Map<string, MessageVersion>();
+    if (ids.length > 0) {
+      const versions = await this.prisma.messageVersion.findMany({
+        where: { orgId, messageId: { in: ids } },
+        orderBy: [{ version: "desc" }]
+      });
+      for (const v of versions) {
+        if (!latestByMessageId.has(v.messageId)) latestByMessageId.set(v.messageId, v);
+      }
+    }
+
+    const last = page[page.length - 1];
+    const next_cursor =
+      hasMore && last ? encodeThreadMessageCursor(last.createdAt, last.id, threadId, orgId) : undefined;
+
+    return {
+      rows: page.map((m) => ({
+        message: m,
+        latest: latestByMessageId.get(m.id) ?? null
+      })),
+      next_cursor
+    };
   }
 
   async createVersion(input: {
